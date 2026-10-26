@@ -1,3 +1,4 @@
 LICENSE_PEPPER=replace-with-32-plus-random-characters
 SESSION_SECRET=replace-with-a-different-32-plus-random-secret
 MASTER_DEVICE_FINGERPRINT=replace-with-the-owner-machine-fingerprint
+BOOTSTRAP_ADMIN_PASSWORD=set-the-private-initial-admin-password

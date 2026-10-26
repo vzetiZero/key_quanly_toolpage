@@ -7,9 +7,6 @@ CREATE TABLE IF NOT EXISTS admins (
   updated_at TEXT NOT NULL
 );
 
-INSERT OR IGNORE INTO admins (username,password_hash,salt,must_change_password,created_at,updated_at)
-VALUES ('admin','a297ef0af2576428e4e8c028bd0b0190ff7ec5636a677ff70f7321a1d68dd1c3','508e0d85fe0879d7db800cdd3337d0f6',1,datetime('now'),datetime('now'));
-
 CREATE TABLE IF NOT EXISTS licenses (
   id TEXT PRIMARY KEY,
   code_hash TEXT NOT NULL UNIQUE,

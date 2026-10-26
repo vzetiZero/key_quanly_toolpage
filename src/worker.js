@@ -32,6 +32,16 @@ async function ensureMaster(env) {
   }
   masterSeeded = true;
 }
+async function ensureAdmin(env) {
+  const exists = await env.DB.prepare('SELECT username FROM admins LIMIT 1').first();
+  if (exists) return;
+  if (!env.BOOTSTRAP_ADMIN_PASSWORD) throw new Error('Thiếu secret BOOTSTRAP_ADMIN_PASSWORD để khởi tạo tài khoản quản trị.');
+  const salt = hex(crypto.getRandomValues(new Uint8Array(16)));
+  const password = await passwordHash(env.BOOTSTRAP_ADMIN_PASSWORD, salt);
+  const at = now();
+  await env.DB.prepare('INSERT OR IGNORE INTO admins (username,password_hash,salt,must_change_password,created_at,updated_at) VALUES (?,?,?,?,?,?)')
+    .bind('admin', password, salt, 1, at, at).run();
+}
 function cookie(request, name) {
   const entry = (request.headers.get('Cookie') || '').split(';').map((part) => part.trim()).find((part) => part.startsWith(`${name}=`));
   return entry ? decodeURIComponent(entry.slice(name.length + 1)) : '';
@@ -96,6 +106,7 @@ async function route(request, env) {
   const path = url.pathname;
   const method = request.method;
   await ensureMaster(env);
+  if (path.startsWith('/api/')) await ensureAdmin(env);
 
   if (path === '/api/health' && method === 'GET') return json({ ok: true });
   if (path === '/api/auth/login' && method === 'POST') return login(request, env);
