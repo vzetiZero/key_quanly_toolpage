@@ -1,0 +1,13 @@
+{
+  "name": "key-quanly-toolpage",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "db:create": "wrangler d1 create key-quanly-toolpage",
+    "db:migrate": "wrangler d1 migrations apply DB --remote"
+  },
+  "devDependencies": { "wrangler": "^4.20.0" }
+}

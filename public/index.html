@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#10192b"><title>KeyDesk · Quản lý License</title>
+  <link rel="stylesheet" href="/app.css">
+</head>
+<body>
+  <div class="login-screen" id="login-screen">
+    <form class="login-card" id="login-form">
+      <div class="brand-mark">K</div><div class="eyebrow">KEYDESK · LICENSE CONTROL</div>
+      <h1>Đăng nhập quản trị</h1><p>Trung tâm phát hành và quản lý license cho News247US Studio.</p>
+      <label>Tài khoản<input id="login-user" name="username" value="admin" autocomplete="username" required></label>
+      <label>Mật khẩu<input id="login-password" name="password" type="password" autocomplete="current-password" required></label>
+      <button class="button primary full" type="submit">Đăng nhập <span>→</span></button>
+      <div class="form-message" id="login-message" role="status"></div>
+      <small>Đổi mật khẩu mặc định ngay trong lần đăng nhập đầu.</small>
+    </form>
+  </div>
+
+  <div class="app" id="app" hidden>
+    <aside class="sidebar">
+      <a class="brand" href="#"><span class="brand-mark small-mark">K</span><span><strong>KeyDesk</strong><small>License control</small></span></a>
+      <div class="nav-caption">WORKSPACE</div>
+      <button class="nav-link selected" data-page="overview"><span>◫</span> Tổng quan</button>
+      <button class="nav-link" data-page="licenses"><span>⌑</span> Quản lý License <b id="nav-count">0</b></button>
+      <button class="nav-link" data-page="devices"><span>▣</span> Thiết bị</button>
+      <button class="nav-link" data-page="activity"><span>◷</span> Lịch sử hoạt động</button>
+      <div class="nav-caption management-caption">QUẢN TRỊ</div>
+      <button class="nav-link" data-page="account"><span>⚙</span> Tài khoản</button>
+      <div class="sidebar-bottom"><div class="online-dot"></div><span>License API online</span><small>Cloudflare D1</small></div>
+    </aside>
+    <main class="main">
+      <header class="topbar"><div><span class="crumb">KEYDESK <span>/</span> <b id="crumb-page">Tổng quan</b></span></div><div class="top-actions"><span class="admin-chip"><i></i><span id="admin-name">admin</span></span><button class="icon-button" id="logout-button" title="Đăng xuất">↗</button></div></header>
+      <section class="content">
+        <div class="page-heading"><div><div class="eyebrow">LICENSE CENTER</div><h1 id="page-title">Tổng quan</h1><p id="page-description">Theo dõi key, thời hạn và thiết bị đang sử dụng ứng dụng.</p></div><button class="button primary" id="new-license-button">＋ Tạo license</button></div>
+        <section class="stats-grid" id="stats-grid">
+          <article class="stat-card"><div class="stat-label">TỔNG LICENSE <span>⌑</span></div><strong id="stat-total">—</strong><small>Tất cả key đã phát hành</small></article>
+          <article class="stat-card"><div class="stat-label">ĐANG HOẠT ĐỘNG <span class="green">●</span></div><strong id="stat-active">—</strong><small>Được phép sử dụng hiện tại</small></article>
+          <article class="stat-card"><div class="stat-label">THIẾT BỊ ĐÃ GẮN <span>▣</span></div><strong id="stat-devices">—</strong><small>Thiết bị đang chiếm chỗ</small></article>
+          <article class="stat-card"><div class="stat-label">SẮP HẾT HẠN <span class="amber">◷</span></div><strong id="stat-soon">—</strong><small>Hết hạn trong 30 ngày</small></article>
+        </section>
+        <section class="panel master-panel"><div class="master-icon">♛</div><div class="master-copy"><div><span class="master-kicker">MASTER KEY</span><span class="pill permanent">VĨNH VIỄN</span></div><strong>viet</strong><small>Key chủ · tối đa 1 thiết bị · không hết hạn</small></div><div class="master-status"><i></i>Đang hoạt động</div></section>
+
+        <section class="panel license-panel page-panel" data-panel="overview">
+          <div class="panel-head"><div><h2>License gần đây</h2><p>Danh sách key và trạng thái sử dụng mới nhất.</p></div><button class="text-button" data-go="licenses">Xem tất cả <span>→</span></button></div>
+          <div class="toolbar"><label class="search"><span>⌕</span><input data-search placeholder="Tìm theo key, tên hoặc mã máy…"></label><select data-status-filter><option value="all">Tất cả trạng thái</option><option value="active">Đang hoạt động</option><option value="revoked">Đã thu hồi</option><option value="expired">Đã hết hạn</option></select></div>
+          <div class="table-scroll"><table><thead><tr><th>KEY / KHÁCH HÀNG</th><th>GÓI</th><th>THIẾT BỊ</th><th>THỜI HẠN</th><th>TRẠNG THÁI</th><th></th></tr></thead><tbody id="license-rows"></tbody></table></div>
+          <div class="empty" id="empty-state" hidden><span>⌑</span><strong>Chưa có license phù hợp</strong><small>Tạo key mới hoặc đổi điều kiện tìm kiếm.</small></div>
+          <div class="table-foot"><span id="row-count">0 licenses</span><button class="text-button" data-go="licenses">Mở danh sách license →</button></div>
+        </section>
+        <section class="panel page-panel" data-panel="devices" hidden><div class="panel-head"><div><h2>Thiết bị</h2><p>Tra cứu và giải phóng thiết bị đã kích hoạt.</p></div><label class="search"><span>⌕</span><input data-search placeholder="Tìm tên hoặc mã máy…"></label></div><div id="device-list" class="device-list"></div></section>
+        <section class="panel page-panel" data-panel="activity" hidden><div class="panel-head"><div><h2>Lịch sử hoạt động</h2><p>Nhật ký phát hành, kích hoạt, thu hồi và chỉnh sửa key.</p></div></div><div id="activity-list" class="activity-list"></div></section>
+        <section class="panel page-panel" data-panel="account" hidden><div class="panel-head"><div><h2>Tài khoản quản trị</h2><p>Đổi mật khẩu truy cập KeyDesk.</p></div></div><form id="password-form" class="password-form"><label>Mật khẩu hiện tại<input type="password" id="old-password" required autocomplete="current-password"></label><label>Mật khẩu mới<input type="password" id="new-password" required minlength="12" autocomplete="new-password"><small>Dùng ít nhất 12 ký tự.</small></label><label>Nhập lại mật khẩu mới<input type="password" id="confirm-password" required minlength="12" autocomplete="new-password"></label><button class="button primary" type="submit">Cập nhật mật khẩu</button><span class="form-message" id="password-message"></span></form></section>
+      </section>
+    </main>
+  </div>
+
+  <dialog id="license-dialog"><form id="license-form" method="dialog"><div class="dialog-head"><div><div class="eyebrow">ISSUE A LICENSE</div><h2 id="dialog-title">Tạo license mới</h2><p>Cấp key theo khách hàng, thời hạn và số lượng thiết bị.</p></div><button class="icon-button" value="cancel" aria-label="Đóng">×</button></div>
+    <label>Tên khách hàng / ghi chú nhận diện<input id="license-name" maxlength="100" placeholder="Ví dụ: Nguyễn Văn A" required></label>
+    <div class="key-control"><label>License key<input id="license-key" minlength="4" maxlength="64" placeholder="Tạo key tự động hoặc nhập thủ công" required></label><button class="button secondary" id="generate-key" type="button">Tạo key</button></div>
+    <div class="form-grid"><label>Loại license<select id="license-plan"><option value="standard">Có thời hạn</option><option value="pro">Pro</option><option value="permanent">Vĩnh viễn</option></select></label><label id="expiry-field">Ngày hết hạn<input id="license-expiry" type="date"></label><label>Số thiết bị tối đa<input id="license-seats" type="number" min="1" max="1000" value="1"></label><label>Ghi chú<input id="license-notes" maxlength="500" placeholder="Ghi chú nội bộ"></label></div>
+    <div class="dialog-actions"><button class="button secondary" value="cancel">Hủy</button><button class="button primary" id="save-license" value="default">Tạo license</button></div>
+  </form></dialog>
+  <dialog id="key-created-dialog"><div class="created-content"><div class="created-icon">✓</div><h2>License đã được tạo</h2><p>Key chỉ hiển thị đầy đủ một lần. Sao chép và gửi cho khách hàng.</p><code id="created-key"></code><button class="button primary full" id="copy-key">Sao chép key</button><button class="text-button" id="close-created">Đóng</button></div></dialog>
+  <dialog id="change-password-dialog"><form id="forced-password-form" method="dialog"><div class="dialog-head"><div><div class="eyebrow">BẢO MẬT TÀI KHOẢN</div><h2>Đổi mật khẩu mặc định</h2><p>Đổi mật khẩu admin trước khi quản lý license.</p></div></div><label>Mật khẩu hiện tại<input id="forced-old-password" type="password" value="admin123" required></label><label>Mật khẩu mới<input id="forced-new-password" type="password" minlength="12" required></label><label>Nhập lại mật khẩu<input id="forced-confirm-password" type="password" minlength="12" required></label><div class="form-message" id="forced-message"></div><button class="button primary full">Lưu mật khẩu</button></form></dialog>
+  <div class="toast" id="toast"></div>
+  <script src="/app.js" defer></script>
+</body>
+</html>
