@@ -122,7 +122,7 @@ async function route(request, env) {
     const auth = await adminRequired(request, env);
     if (auth.response) return auth.response;
     const body = await request.json();
-    if (String(body.password || '').length < 12) return error('Mật khẩu mới cần ít nhất 12 ký tự.');
+    if (!String(body.password || '')) return error('Mật khẩu mới không được để trống.');
     const current = await env.DB.prepare('SELECT password_hash,salt FROM admins WHERE username=?').bind(auth.username).first();
     if (!current || await passwordHash(String(body.current || ''), current.salt) !== current.password_hash) return error('Mật khẩu hiện tại chưa đúng.', 401);
     const salt = hex(crypto.getRandomValues(new Uint8Array(16)));
