@@ -138,12 +138,34 @@ async function route(request, env) {
     if (!row || row.status !== 'active') return error('License không hợp lệ hoặc đã bị thu hồi.', 400);
     if (row.expires_at && row.expires_at < now()) return error('License đã hết hạn.', 400);
     if (row.key_hint === 'viet' && (!env.MASTER_DEVICE_FINGERPRINT || String(device.fingerprint).toUpperCase() !== env.MASTER_DEVICE_FINGERPRINT.toUpperCase())) return error('Key master chỉ dùng trên thiết bị chủ đã đăng ký.', 403);
-    const bound = await env.DB.prepare('SELECT fingerprint FROM license_devices WHERE license_id=? AND fingerprint=?').bind(row.id, device.fingerprint).first();
-    const count = await env.DB.prepare('SELECT COUNT(*) AS total FROM license_devices WHERE license_id=?').bind(row.id).first();
-    if (!bound && count.total >= row.max_devices) return error('License đã dùng hết số thiết bị được cấp.', 409);
-    if (!bound) await env.DB.prepare('INSERT INTO license_devices (fingerprint,license_id,code,name,platform,activated_at,last_seen_at) VALUES (?,?,?,?,?,?,?)').bind(device.fingerprint,row.id,device.code||'',device.name||'Thiết bị',device.platform||'',now(),now()).run();
-    else await env.DB.prepare('UPDATE license_devices SET last_seen_at=? WHERE fingerprint=?').bind(now(),device.fingerprint).run();
-    await event(env, bound ? 'device.checked' : 'device.activated', row.id, device.code || '');
+    const existing = await env.DB.prepare('SELECT license_id FROM license_devices WHERE fingerprint=?').bind(device.fingerprint).first();
+    if (existing?.license_id && existing.license_id !== row.id) return error('Thiết bị này đang được gắn với một license khác.', 409);
+
+    let alreadyBound = existing?.license_id === row.id;
+    if (alreadyBound) {
+      await env.DB.prepare('UPDATE license_devices SET last_seen_at=? WHERE fingerprint=? AND license_id=?').bind(now(), device.fingerprint, row.id).run();
+    } else {
+      // Insert only while this exact license remains active, unexpired and has an unused seat.
+      // The constraint is evaluated inside one D1 write, preventing simultaneous activations
+      // from exceeding max_devices (including the common 1 key = 1 device case).
+      const inserted = await env.DB.prepare(`
+        INSERT INTO license_devices (fingerprint,license_id,code,name,platform,activated_at,last_seen_at)
+        SELECT ?, l.id, ?, ?, ?, ?, ?
+        FROM licenses l
+        WHERE l.id=? AND l.status='active'
+          AND (l.expires_at IS NULL OR l.expires_at>=?)
+          AND (SELECT COUNT(*) FROM license_devices d WHERE d.license_id=l.id) < l.max_devices
+      `).bind(device.fingerprint, device.code || '', device.name || 'Thiết bị', device.platform || '', now(), now(), row.id, now()).run();
+      if (!inserted.meta.changes) {
+        const current = await env.DB.prepare('SELECT status,expires_at,max_devices FROM licenses WHERE id=?').bind(row.id).first();
+        if (!current) return error('License đã bị xóa.', 404);
+        if (current.status !== 'active') return error('License đã bị thu hồi.', 403);
+        if (current.expires_at && current.expires_at < now()) return error('License đã hết hạn.', 403);
+        return error('License đã dùng hết số thiết bị được cấp.', 409);
+      }
+      alreadyBound = false;
+    }
+    await event(env, alreadyBound ? 'device.checked' : 'device.activated', row.id, device.code || '');
     return json({ ok: true, license: { name: row.name, plan: row.plan, expiresAt: row.expires_at } });
   }
   if (path === '/v1/check' && method === 'POST') {
