@@ -19,7 +19,8 @@ async function keyHash(code, env) {
 }
 async function passwordHash(password, salt) {
   const material = await crypto.subtle.importKey('raw', encoder.encode(password), 'PBKDF2', false, ['deriveBits']);
-  return hex(await crypto.subtle.deriveBits({ name: 'PBKDF2', salt: fromHex(salt), iterations: 310000, hash: 'SHA-256' }, material, 256));
+  // Workers Web Crypto accepts PBKDF2 up to 100,000 iterations.
+  return hex(await crypto.subtle.deriveBits({ name: 'PBKDF2', salt: fromHex(salt), iterations: 100000, hash: 'SHA-256' }, material, 256));
 }
 async function ensureMaster(env) {
   if (masterSeeded) return;

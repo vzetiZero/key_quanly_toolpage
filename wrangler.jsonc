@@ -7,7 +7,7 @@
   "d1_databases": [{
     "binding": "DB",
     "database_name": "key-quanly-toolpage",
-    "database_id": "REPLACE_WITH_D1_DATABASE_ID",
+    "database_id": "080338a8-ef3f-4464-b5b0-a8570469b85f",
     "migrations_dir": "migrations"
   }]
 }
