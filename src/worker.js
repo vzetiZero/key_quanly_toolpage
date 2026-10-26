@@ -139,7 +139,17 @@ async function route(request, env) {
     if (row.expires_at && row.expires_at < now()) return error('License đã hết hạn.', 400);
     if (row.key_hint === 'viet' && (!env.MASTER_DEVICE_FINGERPRINT || String(device.fingerprint).toUpperCase() !== env.MASTER_DEVICE_FINGERPRINT.toUpperCase())) return error('Key master chỉ dùng trên thiết bị chủ đã đăng ký.', 403);
     const existing = await env.DB.prepare('SELECT license_id FROM license_devices WHERE fingerprint=?').bind(device.fingerprint).first();
-    if (existing?.license_id && existing.license_id !== row.id) return error('Thiết bị này đang được gắn với một license khác.', 409);
+    let releasedLicenseId = null;
+    if (existing?.license_id && existing.license_id !== row.id) {
+      const previous = await env.DB.prepare('SELECT status,expires_at FROM licenses WHERE id=?').bind(existing.license_id).first();
+      const previousIsActive = previous?.status === 'active' && (!previous.expires_at || previous.expires_at >= now());
+      if (previousIsActive) return error('Thiết bị này đang được gắn với một license còn hiệu lực.', 409);
+
+      // A revoked, expired or deleted key must never permanently reserve a machine.
+      // Release its old binding so the owner can issue a replacement key for that device.
+      await env.DB.prepare('DELETE FROM license_devices WHERE fingerprint=? AND license_id=?').bind(device.fingerprint, existing.license_id).run();
+      releasedLicenseId = existing.license_id;
+    }
 
     let alreadyBound = existing?.license_id === row.id;
     if (alreadyBound) {
@@ -166,6 +176,7 @@ async function route(request, env) {
       alreadyBound = false;
     }
     await event(env, alreadyBound ? 'device.checked' : 'device.activated', row.id, device.code || '');
+    if (releasedLicenseId) await event(env, 'device.reassigned', releasedLicenseId, `Reassigned to ${row.id}`);
     return json({ ok: true, license: { name: row.name, plan: row.plan, expiresAt: row.expires_at } });
   }
   if (path === '/v1/check' && method === 'POST') {
