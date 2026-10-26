@@ -6,7 +6,10 @@ const error = (message, status = 400) => json({ message }, status);
 const hex = (bytes) => [...new Uint8Array(bytes)].map((value) => value.toString(16).padStart(2, '0')).join('');
 const fromHex = (value) => new Uint8Array(String(value).match(/.{2}/g).map((part) => parseInt(part, 16)));
 const b64url = (bytes) => btoa(String.fromCharCode(...new Uint8Array(bytes))).replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_');
-const decode64 = (value) => Uint8Array.from(atob(value.replace(/-/g, '+').replace(/_/g, '/')), (char) => char.charCodeAt(0));
+const decode64 = (value) => {
+  const normalized = value.replace(/-/g, '+').replace(/_/g, '/');
+  return Uint8Array.from(atob(normalized.padEnd(Math.ceil(normalized.length / 4) * 4, '=')), (char) => char.charCodeAt(0));
+};
 const dateExpiry = (value) => !value ? null : (/^\d{4}-\d{2}-\d{2}$/.test(value) ? `${value}T23:59:59.999Z` : new Date(value).toISOString());
 
 async function hmac(value, secret) {
@@ -17,6 +20,22 @@ async function keyHash(code, env) {
   if (!env.LICENSE_PEPPER) throw new Error('License service chưa cấu hình pepper.');
   return hex(await hmac(String(code || '').trim().toLowerCase(), env.LICENSE_PEPPER));
 }
+async function encryptionKey(env) {
+  if (!env.KEY_ENCRYPTION_SECRET) throw new Error('License service chưa cấu hình khóa mã hóa key.');
+  const raw = await crypto.subtle.digest('SHA-256', encoder.encode(env.KEY_ENCRYPTION_SECRET));
+  return crypto.subtle.importKey('raw', raw, { name: 'AES-GCM' }, false, ['encrypt', 'decrypt']);
+}
+async function encryptLicenseKey(value, env) {
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const encrypted = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, await encryptionKey(env), encoder.encode(value));
+  return `${b64url(iv)}.${b64url(encrypted)}`;
+}
+async function decryptLicenseKey(value, env) {
+  const [iv, encrypted] = String(value || '').split('.');
+  if (!iv || !encrypted) throw new Error('Dữ liệu key mã hóa không hợp lệ.');
+  const plain = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: decode64(iv) }, await encryptionKey(env), decode64(encrypted));
+  return new TextDecoder().decode(plain);
+}
 async function passwordHash(password, salt) {
   const material = await crypto.subtle.importKey('raw', encoder.encode(password), 'PBKDF2', false, ['deriveBits']);
   // Workers Web Crypto accepts PBKDF2 up to 100,000 iterations.
@@ -25,11 +44,13 @@ async function passwordHash(password, salt) {
 async function ensureMaster(env) {
   if (masterSeeded) return;
   const digest = await keyHash('viet', env);
-  const exists = await env.DB.prepare('SELECT id FROM licenses WHERE code_hash=?').bind(digest).first();
+  const exists = await env.DB.prepare('SELECT id,key_ciphertext FROM licenses WHERE code_hash=?').bind(digest).first();
   if (!exists) {
     const at = now();
-    await env.DB.prepare("INSERT OR IGNORE INTO licenses (id,code_hash,key_hint,name,plan,status,expires_at,max_devices,notes,created_at,updated_at) VALUES (?,?,?,?,?,'active',NULL,1,?,?,?)")
-      .bind(crypto.randomUUID(), digest, 'viet', 'Master license', 'permanent', 'Key master vĩnh viễn', at, at).run();
+    await env.DB.prepare("INSERT OR IGNORE INTO licenses (id,code_hash,key_hint,key_ciphertext,name,plan,status,expires_at,max_devices,notes,created_at,updated_at) VALUES (?,?,?,?,?,?,'active',NULL,1,?,?,?)")
+      .bind(crypto.randomUUID(), digest, 'viet', await encryptLicenseKey('viet', env), 'Master license', 'permanent', 'Key master vĩnh viễn', at, at).run();
+  } else if (!exists.key_ciphertext) {
+    await env.DB.prepare('UPDATE licenses SET key_ciphertext=?,updated_at=? WHERE id=?').bind(await encryptLicenseKey('viet', env), now(), exists.id).run();
   }
   masterSeeded = true;
 }
@@ -75,7 +96,7 @@ async function event(env, type, licenseId = null, detail = '') {
 }
 async function publicLicense(env, row) {
   const devices = await env.DB.prepare('SELECT fingerprint,code,name,platform,activated_at,last_seen_at FROM license_devices WHERE license_id=? ORDER BY activated_at DESC').bind(row.id).all();
-  return { id: row.id, key: row.key_hint === 'viet' ? 'viet' : `••••${row.key_hint}`, name: row.name, plan: row.plan, status: row.status, expiresAt: row.expires_at, maxDevices: row.max_devices, notes: row.notes, createdAt: row.created_at, updatedAt: row.updated_at, devices: devices.results.map((item) => ({ fingerprint: item.fingerprint, code: item.code, name: item.name, platform: item.platform, activatedAt: item.activated_at, lastSeenAt: item.last_seen_at })) };
+  return { id: row.id, key: row.key_hint === 'viet' ? 'viet' : `••••${row.key_hint}`, keyAvailable: Boolean(row.key_ciphertext) || row.key_hint === 'viet', name: row.name, plan: row.plan, status: row.status, expiresAt: row.expires_at, maxDevices: row.max_devices, notes: row.notes, createdAt: row.created_at, updatedAt: row.updated_at, devices: devices.results.map((item) => ({ fingerprint: item.fingerprint, code: item.code, name: item.name, platform: item.platform, activatedAt: item.activated_at, lastSeenAt: item.last_seen_at })) };
 }
 async function adminRequired(request, env) {
   const username = await session(request, env);
@@ -206,11 +227,20 @@ async function route(request, env) {
     const plan = ['standard','pro','permanent'].includes(body.plan) ? body.plan : 'standard';
     const id = crypto.randomUUID(); const at = now();
     try {
-      await env.DB.prepare('INSERT INTO licenses (id,code_hash,key_hint,name,plan,status,expires_at,max_devices,notes,created_at,updated_at) VALUES (?,?,?,?,?,\'active\',?,?,?,?,?)')
-        .bind(id, await keyHash(key, env), key.slice(-4), String(body.name || 'License mới').slice(0,100), plan, plan === 'permanent' ? null : dateExpiry(body.expiresAt), Math.min(1000,Math.max(1,Number(body.maxDevices)||1)), String(body.notes||'').slice(0,500), at, at).run();
+      await env.DB.prepare('INSERT INTO licenses (id,code_hash,key_hint,key_ciphertext,name,plan,status,expires_at,max_devices,notes,created_at,updated_at) VALUES (?,?,?,?,?,?,\'active\',?,?,?,?,?)')
+        .bind(id, await keyHash(key, env), key.slice(-4), await encryptLicenseKey(key, env), String(body.name || 'License mới').slice(0,100), plan, plan === 'permanent' ? null : dateExpiry(body.expiresAt), Math.min(1000,Math.max(1,Number(body.maxDevices)||1)), String(body.notes||'').slice(0,500), at, at).run();
     } catch (e) { return error('Key đã tồn tại hoặc dữ liệu không hợp lệ.', 409); }
     await event(env,'license.created',id,String(body.name||''));
     return json({ ok:true, key, id },201);
+  }
+  const revealMatch = path.match(/^\/api\/admin\/licenses\/([^/]+)\/key$/);
+  if (revealMatch && method === 'GET') {
+    const row = await env.DB.prepare('SELECT id,key_hint,key_ciphertext FROM licenses WHERE id=?').bind(revealMatch[1]).first();
+    if (!row) return error('Không tìm thấy license.', 404);
+    if (!row.key_ciphertext && row.key_hint !== 'viet') return error('Key này được tạo trước khi có tính năng xem lại nên không thể khôi phục. Hãy cấp key thay thế.', 410);
+    const key = row.key_hint === 'viet' ? 'viet' : await decryptLicenseKey(row.key_ciphertext, env);
+    await event(env, 'license.revealed', row.id, auth.username);
+    return json({ key });
   }
   const match = path.match(/^\/api\/admin\/licenses\/([^/]+)$/);
   if (match && method === 'PATCH') {

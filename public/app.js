@@ -116,7 +116,8 @@ function render() {
   $('#license-rows').innerHTML = matches.map((item) => {
     const [status, label] = statusOf(item);
     const plan = item.plan === 'permanent' ? 'Vĩnh viễn' : item.plan === 'pro' ? 'Pro' : 'Tiêu chuẩn';
-    return `<tr><td><code class="key-display">${escapeHtml(safeKey(item))}</code><span class="cell-sub">${escapeHtml(item.name)}</span></td><td><span class="plan-pill">${plan}</span></td><td><span class="device-count">${item.devices.length} / ${item.maxDevices}</span><span class="cell-sub">${item.devices[0] ? escapeHtml(item.devices[0].name) : 'Chưa kích hoạt'}</span></td><td>${dateLabel(item.expiresAt)}</td><td><span class="status-pill status-${status}">${label}</span></td><td><div class="row-actions"><button class="action-btn" title="Sửa" data-action="edit" data-id="${item.id}">✎</button><button class="action-btn" title="${item.status === 'active' ? 'Thu hồi' : 'Mở lại'}" data-action="toggle" data-id="${item.id}">⏻</button><button class="action-btn danger" title="Xóa" data-action="delete" data-id="${item.id}">×</button></div></td></tr>`;
+    const revealButton = item.keyAvailable ? `<button class="action-btn" title="Xem key" data-action="reveal" data-id="${item.id}">◉</button>` : `<button class="action-btn" title="Key cũ không thể khôi phục" disabled>◉</button>`;
+    return `<tr><td><code class="key-display">${escapeHtml(safeKey(item))}</code><span class="cell-sub">${escapeHtml(item.name)}</span></td><td><span class="plan-pill">${plan}</span></td><td><span class="device-count">${item.devices.length} / ${item.maxDevices}</span><span class="cell-sub">${item.devices[0] ? escapeHtml(item.devices[0].name) : 'Chưa kích hoạt'}</span></td><td>${dateLabel(item.expiresAt)}</td><td><span class="status-pill status-${status}">${label}</span></td><td><div class="row-actions">${revealButton}<button class="action-btn" title="Sửa" data-action="edit" data-id="${item.id}">✎</button><button class="action-btn" title="${item.status === 'active' ? 'Thu hồi' : 'Mở lại'}" data-action="toggle" data-id="${item.id}">⏻</button><button class="action-btn danger" title="Xóa" data-action="delete" data-id="${item.id}">×</button></div></td></tr>`;
   }).join('');
   $('#empty-state').hidden = matches.length > 0;
   $('#row-count').textContent = `${matches.length} license${matches.length === 1 ? '' : 's'}`;
@@ -164,7 +165,7 @@ async function saveLicense(event) {
     else {
       payload.key = $('#license-key').value.trim();
       const created = await api('/api/admin/licenses', { method:'POST', body:body(payload) });
-      $('#created-key').textContent = created.key; $('#key-created-dialog').showModal();
+      showLicenseKey(created.key, 'License đã được tạo', 'Sao chép và gửi key này cho khách hàng.');
     }
     $('#license-dialog').close(); await loadData(); showToast(editId ? 'Đã cập nhật license.' : 'Đã tạo license.');
   } catch (error) { showToast(error.message, true); }
@@ -174,6 +175,10 @@ async function licenseAction(event) {
   const item = state.licenses.find((license) => license.id === button.dataset.id); if (!item) return;
   const action = button.dataset.action;
   try {
+    if (action === 'reveal') {
+      const response = await api(`/api/admin/licenses/${item.id}/key`);
+      showLicenseKey(response.key, 'License key', `Key của ${item.name}.`);
+    }
     if (action === 'edit') openLicenseDialog(item);
     if (action === 'toggle') {
       const status = item.status === 'active' ? 'revoked' : 'active';
@@ -189,6 +194,12 @@ async function licenseAction(event) {
       await api(`/api/admin/licenses/${item.id}`, { method:'PATCH', body:body({ releaseFingerprint:button.dataset.fingerprint }) }); await loadData(); showToast('Đã giải phóng thiết bị.');
     }
   } catch (error) { showToast(error.message, true); }
+}
+function showLicenseKey(key, title, description) {
+  $('#shown-key-title').textContent = title;
+  $('#shown-key-description').textContent = description;
+  $('#created-key').textContent = key;
+  $('#key-created-dialog').showModal();
 }
 async function changePassword(event) {
   event.preventDefault();
