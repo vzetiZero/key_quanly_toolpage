@@ -45,6 +45,8 @@ async function init() {
   $('#generate-key').addEventListener('click', () => { $('#license-key').value = generateKey(); });
   $('#license-plan').addEventListener('change', () => { $('#expiry-field').hidden = $('#license-plan').value === 'permanent'; });
   $('#license-form').addEventListener('submit', saveLicense);
+  $('#close-license-dialog').addEventListener('click', closeLicenseDialog);
+  $('#cancel-license-dialog').addEventListener('click', closeLicenseDialog);
   $('#license-rows').addEventListener('click', licenseAction);
   $('#device-list').addEventListener('click', licenseAction);
   $('#copy-key').addEventListener('click', async () => { await navigator.clipboard.writeText($('#created-key').textContent); showToast('Đã sao chép key.'); });
@@ -149,9 +151,12 @@ function openLicenseDialog(item = null) {
   $('#license-notes').value = item?.notes || '';
   $('#license-dialog').showModal();
 }
+function closeLicenseDialog() {
+  $('#license-form').reset();
+  $('#license-dialog').close();
+}
 async function saveLicense(event) {
   event.preventDefault();
-  if (event.submitter?.value === 'cancel') { $('#license-dialog').close(); return; }
   const form = $('#license-form'); const editId = form.dataset.editId;
   const payload = { name:$('#license-name').value.trim(), plan:$('#license-plan').value, expiresAt:$('#license-expiry').value || null, maxDevices:Number($('#license-seats').value), notes:$('#license-notes').value.trim() };
   try {
