@@ -5,15 +5,22 @@
 
 /* License form: the markup uses native <dialog>, not a .dialog class. */
 #license-dialog { width: min(620px, calc(100% - 28px)); }
-#license-dialog form { display: grid; gap: 16px; padding: 28px; }
-#license-dialog .dialog-head { margin: 0; }
-#license-dialog label { display: grid; gap: 7px; margin: 0; color: #39475e; font-size: 12px; font-weight: 700; }
+#license-dialog form,
+#change-password-dialog form { display: grid; gap: 16px; padding: 28px; }
+#license-dialog .dialog-head,
+#change-password-dialog .dialog-head { margin: 0; }
+#license-dialog label,
+#change-password-dialog label { display: grid; gap: 7px; margin: 0; color: #39475e; font-size: 12px; font-weight: 700; }
 #license-dialog input,
-#license-dialog select { width: 100%; height: 42px; padding: 0 12px; border: 1px solid #dfe5ee; border-radius: 8px; outline: none; color: var(--ink); background: #fbfcfe; font: inherit; }
+#license-dialog select,
+#change-password-dialog input { width: 100%; height: 42px; padding: 0 12px; border: 1px solid #dfe5ee; border-radius: 8px; outline: none; color: var(--ink); background: #fbfcfe; font: inherit; }
 #license-dialog input:focus,
-#license-dialog select:focus { border-color: #849aff; box-shadow: 0 0 0 3px #637ef21c; }
+#license-dialog select:focus,
+#change-password-dialog input:focus { border-color: #849aff; box-shadow: 0 0 0 3px #637ef21c; }
 #license-dialog .key-control { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: end; gap: 10px; }
 #license-dialog .key-control .button { height: 42px; white-space: nowrap; }
 #license-dialog .form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
 #license-dialog .dialog-actions { margin: 0; padding-top: 18px; }
-@media (max-width: 560px) { #license-dialog form { padding: 22px; } #license-dialog .key-control, #license-dialog .form-grid { grid-template-columns: 1fr; } #license-dialog .key-control .button { width: 100%; } }
+#change-password-dialog { width: min(500px, calc(100% - 28px)); }
+#change-password-dialog .button { margin-top: 4px; }
+@media (max-width: 560px) { #license-dialog form, #change-password-dialog form { padding: 22px; } #license-dialog .key-control, #license-dialog .form-grid { grid-template-columns: 1fr; } #license-dialog .key-control .button { width: 100%; } }
